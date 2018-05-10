@@ -1,0 +1,75 @@
+<tool id="my_dexpr" name="Run differential expression analysis" version="0.1.0">
+<requirements>
+    <!-- <requirement type="set_environment">R_SCRIPT_PATH</requirement>-->
+    <requirement type="package" >R</requirement>
+    <requirement type="package" >DESeq2</requirement>
+</requirements>
+
+  <description>Run differential gene/exon usage analysis</description>
+<!--   <command interpreter="Rscript"> run_deseq.R $counts $output $output2 $fittype
+#for $N in $samples
+  ${N.istreated} 
+#end for
+</command>  -->
+
+<!--   dirty hack to change R version      -->
+  <command interpreter="~/.Renv/versions/3.4.1/bin/Rscript"> run_dexpr.R -c $counts -o $output 
+#if $method=="-d" or $method=="-l" or $method=="-x" or $method=="-y"
+-p $output2
+#end if 
+$method
+
+#for $N in $samples
+  ${N.sampletype} 
+#end for
+
+
+</command>
+  <inputs>
+    <param format="tabular" name="counts" type="data" optional="false" label="Input counted gene/exon hits"/>
+    <param name="column" type="data_column"  data_ref="counts" label="Choose column"/>
+    <repeat name="samples" title="Determine sample types" min="1" default="2">
+      <param name="sampletype" label="Define type of each column in file (except first column, that contain gene name)" type="select">
+        <option value="0"> Control </value>
+        <option value="1"> Treated </value>
+        <option value="-"> do not use this column at all </value>
+      </param>
+    </repeat>
+    <param name="method" type="select" label="Methods">
+      <option value="-d">DESeq parametric (default)</option>
+      <option value="-l">DESeq local (mandatory for only one condition or lack of repeats)</option>
+      <option value="-x">DESeq2 parametric (default)</option>
+      <option value="-y">DESeq2 local (mandatory for only one condition or lack of repeats)</option>
+      <option value="-e">edgeR</option>
+      <option value="-m">metagenomeSeq log-normal model</option>
+      <option value="-z">metagenomeSeq ZIG (Zero-inflated Gaussian) model</option>
+      <option value="-w">Mann-Whitney-Wilcoxon test</option>
+    </param>
+
+  </inputs>
+  <outputs>
+        <data format="tabular" name="output"/>
+        <data format="pdf" name="output2">
+		<filter>method=="-d" or method=="-l" or method=="-x" or method=="-y"</filter>
+	</data>
+  </outputs>
+
+  <tests>
+  </tests>
+
+  <help>
+    Run differential expression analysis with DESeq, DESeq2, edgeR, metagenomeSeq or simple Mann-Whitney-Wilcoxon test.
+
+    Requires raw count table (with header) in format:
+    gene/exon name	sample1		sample2		sample3 	....
+    
+    Filters out genes with too little counts.
+
+    Returns table with mean values for conditions, foldChange, log2foldChange, p-value and Benjamini-Hochberg adjusted p-value.
+
+
+Author: Julia
+  </help>
+
+</tool>
+
