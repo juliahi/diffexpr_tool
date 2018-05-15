@@ -27,8 +27,9 @@ option_list = list(
               help="run metagenomeSeq with ZIG model", metavar="character"),
   make_option(c("-e", "--edgeR"), action="store_true",default=FALSE, 
               help="run edgeR ", metavar="character")
-  #make_option(c("-t", "--conditions"), type="character",
-  #            help="0 or 1 for each sample, coma separated", metavar="character")
+  # make_option(c("-f", "--filter"), type="numeric",
+  #            help="filter ", metavar="character")
+  
 ); 
 
 opt_parser = OptionParser(option_list=option_list);
@@ -86,13 +87,13 @@ data$log2fold <- sapply(data$fold, log2)
 
 NON_PV_FIELDS=6
 
-MINREADSCOND <- 5
-MINREADSSUMS <- 10
 MINREADS <- 1
 NMINREADS <- n-1
 
 
 ########### remove some reads with not enough reads in condition ####################
+# MINREADSCOND <- 5
+# MINREADSSUMS <- 10
 #interesting <- (sums2/n2<=MINREADSCOND) | (sums1/n1<=MINREADSCOND) 
 #int <- data[interesting,]
 
@@ -120,8 +121,8 @@ if (opt$options$wilcoxon) {
   ## multiple hypothesis correction
   #data$padj <- min(1, pv*dim(data)[1])
 
-  write.table(data[order(abs(data$MWpval)),(n+1):dim(data)[2]], paste(opt$options$out, '/wilcoxon.tsv', sep=''), quote=FALSE, sep='\t',
-            col.names = FALSE)
+  #write.table(data[order(abs(data$MWpval)),(n+1):dim(data)[2]], paste(opt$options$out, '/wilcoxon.tsv', sep=''), quote=FALSE, sep='\t',
+  #          col.names = FALSE)
   rm(s)
 }
 
@@ -150,7 +151,7 @@ if (opt$options$edgeR) {
   
   #print(sapply(rownames(data)[1:10], function(x) qlf$table[x,"PValue"]))
   data$edgeRpv <- sapply(rownames(data), function(x) qlf$table[x,"PValue"])
-  adj <- p.adjust(qfl$table[,"PValue"]) 
+  adj <- p.adjust(qlf$table[,"PValue"]) 
   data$edgeRpv <- sapply(rownames(data), function(x) padj[x])
   #To perform likelihood ratio tests:
   #fit <- glmFit(y,design)
@@ -331,13 +332,13 @@ if ( opt$options$metagenomeseqLog | opt$options$metagenomeseqZIG ) {
 #print(warnings())
 ################# WRITE SUMMARY
 
+data <- data[, (n+1):last_pv]
 
-data <- data[, (n+1):dim(data)[2]]
-#data$toCheck <- apply(data, 1, function(x) sum(x[(NON_PV_FIELDS+1):length(x)]  < 0.05, na.rm = T))
+last_pv <- dim(data)[2]
+data$toCheck <- apply(data[,(NON_PV_FIELDS+1):last_pv], 1, function(x) sum(x < 0.05, na.rm = T))
 
-
-
-mins <- apply(data, 1, function(x) min(x[(NON_PV_FIELDS+1):(dim(data)[2]-1):2]))
+mins <- apply(data[,(NON_PV_FIELDS+1):last_pv], 1, function(x) min(x, na.rm = TRUE))
+data$minimap_pv <- mins   #?
 data<-data[order(mins,  decreasing = F),]
 
 #print(paste("Number of contigs to check by at least 2 methods:", sum(data$toCheck >= 2, na.rm = TRUE)))
