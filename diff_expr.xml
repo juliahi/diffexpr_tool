@@ -14,7 +14,7 @@
 
 <!--   dirty hack to change R version      -->
   <command interpreter="~/.Renv/versions/3.4.1/bin/Rscript"> run_dexpr.R -c $counts -o $output 
-#if $method=="-d" or $method=="-l" or $method=="-x" or $method=="-y"
+#if $method=="--deseqpar" or $method=="--deseqloc" or $method=="--deseq2par" or $method=="--deseq2loc"
 -p $output2
 #end if 
 $method
@@ -36,21 +36,21 @@ $method
       </param>
     </repeat>
     <param name="method" type="select" label="Methods">
-      <option value="-d">DESeq parametric (default)</option>
-      <option value="-l">DESeq local (mandatory for only one condition or lack of repeats)</option>
-      <option value="-x">DESeq2 parametric (default)</option>
-      <option value="-y">DESeq2 local (mandatory for only one condition or lack of repeats)</option>
-      <option value="-e">edgeR</option>
-      <option value="-m">metagenomeSeq log-normal model</option>
-      <option value="-z">metagenomeSeq ZIG (Zero-inflated Gaussian) model</option>
-      <option value="-w">Mann-Whitney-Wilcoxon test</option>
+      <option value="--deseqpar">DESeq parametric (default)</option>
+      <option value="--deseqloc">DESeq local (mandatory for only one condition or lack of repeats)</option>
+      <option value="--deseq2par">DESeq2 parametric (default)</option>
+      <option value="--deseq2loc">DESeq2 local (mandatory for only one condition or lack of repeats)</option>
+      <option value="--edgeR">edgeR</option>
+      <option value="--metagenomeseqLog">metagenomeSeq log-normal model</option>
+      <option value="--metagenomeseqZIG">metagenomeSeq ZIG (Zero-inflated Gaussian) model</option>
+      <option value="--wilcoxon">Mann-Whitney-Wilcoxon test</option>
     </param>
 
   </inputs>
   <outputs>
         <data format="tabular" name="output"/>
         <data format="pdf" name="output2">
-		<filter>method=="-d" or method=="-l" or method=="-x" or method=="-y"</filter>
+		<filter>method=="--deseqpar" or method=="--deseqloc" or method=="--deseq2par" or method=="--deseq2loc"</filter>
 	</data>
   </outputs>
 
@@ -65,7 +65,7 @@ $method
     
     Filters out genes with too little counts.
 
-    Returns table with mean values for conditions, foldChange, log2foldChange, p-value and Benjamini-Hochberg adjusted p-value.
+    Returns table with mean values for conditions, foldChange, log2foldChange, p-value for each selected method.
 
 
 Author: Julia
