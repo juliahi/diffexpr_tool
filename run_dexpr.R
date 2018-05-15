@@ -1,6 +1,9 @@
 #!/usr/bin/Rscript
 #####################################################
 
+options(show.error.messages=F, error=function(){cat(geterrmessage(),file=stderr());q("no",1,F)})
+
+
 library("optparse")
 library("stats")
 
