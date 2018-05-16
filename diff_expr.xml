@@ -1,19 +1,23 @@
-<tool id="my_dexpr" name="Run differential expression analysis" version="0.1.0">
+<tool id="diff_expr" name="Run differential expression analysis" version="0.1.0">
 <requirements>
     <!-- <requirement type="set_environment">R_SCRIPT_PATH</requirement>-->
-    <requirement type="package" >R</requirement>
+    <requirement type="package" version="3.2.1">R</requirement>
     <requirement type="package" >DESeq2</requirement>
+
+
 </requirements>
 
-  <description>Run differential gene/exon usage analysis</description>
+  <description>Run various differential expression analysis methods</description>
 <!--   <command interpreter="Rscript"> run_deseq.R $counts $output $output2 $fittype
 #for $N in $samples
   ${N.istreated} 
 #end for
 </command>  -->
 
-<!--   dirty hack to change R version      -->
-  <command interpreter="~/.Renv/versions/3.4.1/bin/Rscript"> run_dexpr.R -c $counts -o $output 
+<!--   dirty hack to change R version      
+  <command interpreter="~/.Renv/versions/3.4.1/bin/Rscript"> --> 
+  <command interpreter="Rscript" detect_errors="exit_code"><![CDATA[ 
+run_dexpr.R -c $counts -o $output 
 #if $method=="--deseqpar" or $method=="--deseqloc" or $method=="--deseq2par" or $method=="--deseq2loc"
 -p $output2
 #end if 
@@ -23,19 +27,20 @@ $method
   ${N.sampletype} 
 #end for
 
+]]></command>
 
-</command>
+
   <inputs>
     <param format="tabular" name="counts" type="data" optional="false" label="Input counted gene/exon hits"/>
     <param name="column" type="data_column"  data_ref="counts" label="Choose column"/>
     <repeat name="samples" title="Determine sample types" min="1" default="2">
       <param name="sampletype" label="Define type of each column in file (except first column, that contain gene name)" type="select">
-        <option value="0"> Control </value>
-        <option value="1"> Treated </value>
-        <option value="-"> do not use this column at all </value>
+        <option value="0"> Control </option>
+        <option value="1"> Treated </option>
+        <option value="-"> do not use this column at all </option>
       </param>
     </repeat>
-    <param name="method" type="select" label="Methods">
+    <param name="method" type="select" label="Methods" multiple="true">
       <option value="--deseqpar">DESeq parametric (default)</option>
       <option value="--deseqloc">DESeq local (mandatory for only one condition or lack of repeats)</option>
       <option value="--deseq2par">DESeq2 parametric (default)</option>
@@ -45,6 +50,7 @@ $method
       <option value="--metagenomeseqZIG">metagenomeSeq ZIG (Zero-inflated Gaussian) model</option>
       <option value="--wilcoxon">Mann-Whitney-Wilcoxon test</option>
     </param>
+    <param name="filter" type="integer" value="5" min="0" label="Filter out reads with less counts in one of conditions"/>
 
   </inputs>
   <outputs>
@@ -57,7 +63,7 @@ $method
   <tests>
   </tests>
 
-  <help>
+  <help><![CDATA[
     Run differential expression analysis with DESeq, DESeq2, edgeR, metagenomeSeq or simple Mann-Whitney-Wilcoxon test.
 
     Requires raw count table (with header) in format:
@@ -69,7 +75,8 @@ $method
 
 
 Author: Julia
-  </help>
+]]>
+</help>
 
 </tool>
 
