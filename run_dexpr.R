@@ -67,8 +67,8 @@ print(colnames(countTable[condition == "untreated"]))
 n1<- sum(condition == 'untreated')
 n2<-sum(condition == 'treated')
 
-sums1 <- rowSums(countTable[, condition == "untreated" ])
-sums2 <- rowSums(countTable[, condition == "treated" ])
+sums1 <- rowSums(countTable[, condition == "untreated", drop=FALSE ])
+sums2 <- rowSums(countTable[, condition == "treated", drop=FALSE ])
 
 data <- countTable
 data$name <- rownames(data)
@@ -161,7 +161,6 @@ if (opt$options$edgeR) {
     data$edgeRpv <- sapply(rownames(data), function(x) qlf$table[x,"PValue"])
     #padj <- p.adjust(qlf$table[,"PValue"]) 
     #data$edgeRpadj <- sapply(rownames(data), function(x) padj[x])
-    rm(y, fit, qlf)
     
     #To perform likelihood ratio tests:
     #fit <- glmFit(y,design)
@@ -170,11 +169,13 @@ if (opt$options$edgeR) {
     successfull<-successfull+1
     print("edgeR finished successfully.")
   }, warning = function(w) {
+    print("edgeR warning:")
     print(w)
   }, error = function(e) {
     print("Error occured running edgeR")
     print(e)
   })
+  rm(y, fit, qlf)
 }
 
 ########################### DESeq or DESeq2 plot output #####################
@@ -243,8 +244,9 @@ if (opt$options$deseqpar | opt$options$deseqloc) {
 
     cds = DESeq::newCountDataSet( countTable, condition )
     cds = DESeq::estimateSizeFactors( cds )
+    print(paste("Running DESeq"))
     
-    if ( length(condition) > 3 & opt$options$deseqpar ) {
+    if ( opt$options$deseqpar ) {
       tryCatch({
         print(paste("Running DESeq parametric"))
         title=paste("DESeq on", nrow(countTable) , "genes.", "Fit type: parametric")
@@ -256,32 +258,38 @@ if (opt$options$deseqpar | opt$options$deseqloc) {
         #data$DESeqparpadj <- sapply(rownames(data), function(x) res[res$id==x,]$padj)
         successfull<-successfull+1
         print("DESeq parametric finished successfully.")
-      }, error = function(e) {
-        print("Error occured running DESeq parametric -> running local instead")
-        print(e)
+      }, warning = function(w) {
+        print("DESeq parametric warning:"); print(w)
+     }, error = function(e) {
+        print("Error occured running DESeq parametric -> running local instead"); print(e)
         opt$options$deseqloc <- TRUE
       }    )
     } 
     
     if ( opt$options$deseqloc ) {
-      print(paste("Running DESeq local"))
-      title=paste("DESeq on", nrow(countTable) , "genes.", "Fit type: local")
-      deseq.generalinfo(cds, title)
+      tryCatch({
+        print(paste("Running DESeq local"))
+        title=paste("DESeq on", nrow(countTable) , "genes.", "Fit type: local")
+        deseq.generalinfo(cds, title)
       
-      cds <- DESeq::estimateDispersions( cds, method="blind", sharingMode="fit-only", fitType="local" )
-      res <- plot.deseq1(cds, "local", title)
-      data$DESeqlocpv <- sapply(rownames(data), function(x) ifelse(sum(res$id==x) == 1, res[res$id==x,]$pval, NA))
-      #data$DESeqlocpadj <- sapply(rownames(data), function(x) res[res$id==x,]$padj)
-      successfull<-successfull+1
-      print("DESeq local finished successfully.")
-    }    
-  }, warning = function(w) {
-    print(w)
-  }, error = function(e) {
-    print("Error occured running DESeq")
-    print(e)
+        cds <- DESeq::estimateDispersions( cds, method="blind", sharingMode="fit-only", fitType="local" )
+        res <- plot.deseq1(cds, "local", title)
+        data$DESeqlocpv <- sapply(rownames(data), function(x) ifelse(sum(res$id==x) == 1, res[res$id==x,]$pval, NA))
+        #data$DESeqlocpadj <- sapply(rownames(data), function(x) res[res$id==x,]$padj)
+        successfull<-successfull+1
+        print("DESeq local finished successfully.")    
+      }, warning = function(w) {
+        print("DESeq local warning:"); print(w)
+     }, error = function(e) {
+        print("Error occured running DESeq local"); print(e)
+        opt$options$deseqloc <- TRUE
+     })
+    }
+  }, warning = function(w) { print("DESeq warning:"); print(w)
+  }, error = function(e) { print("Error occured running DESeq"); print(e)
   })
   rm(cds)
+  garbage <- dev.off()
 }
 
 ################### DESeq2 ##############################
@@ -289,6 +297,7 @@ if (opt$options$deseqpar | opt$options$deseqloc) {
 if (opt$options$deseq2par | opt$options$deseq2loc) {
   result = tryCatch({
     suppressWarnings(suppressMessages(library( "DESeq2" )))
+    print(paste("Running DESeq2"))
 
     coldata = data.frame(colnames(countTable), condition)
     countData <- data.frame(countTable)
@@ -332,14 +341,15 @@ if (opt$options$deseq2par | opt$options$deseq2loc) {
       print("DESeq2 local finished successfully.")
     }  
   }, warning = function(w) {
+    print("DESeq2 warning:")
     print(w)
   }, error = function(e) {
     print("Error occured running DESeq2")
     print(e)
   } )
   rm(countData, dds)
+  garbage <- dev.off()
 }
-garbage <- dev.off()
 
 ################## metagenomeSeq #######################
 if ( opt$options$metagenomeseqLog | opt$options$metagenomeseqZIG ) {
@@ -426,11 +436,11 @@ last_pv <- dim(data)[2]
 if (successfull > 1) {
   data$toCheck <- apply(data[,(NON_PV_FIELDS+1):last_pv], 1, function(x) sum(x < 0.05, na.rm = T))
   print(paste("Number of genes with p-value < 0.05 according to at least 2 methods:", sum(data$toCheck >= 2, na.rm = TRUE)))
-  write.table(data[order(data$toCheck,  decreasing = T),], opt$options$out, quote=FALSE, sep=',', row.names = F,
+  write.table(data[order(data$toCheck,  decreasing = T),], opt$options$out, quote=FALSE, sep='\t', row.names = F,
               col.names = TRUE)
 } else {
   print(paste("Number of genes with p-value < 0.05:", sum(data[,last_pv] < 0.05, na.rm = TRUE)))  
-  write.table(data[order(data[,last_pv],  decreasing = F),], opt$options$out, quote=FALSE, sep=',', row.names = F,
+  write.table(data[order(data[,last_pv],  decreasing = F),], opt$options$out, quote=FALSE, sep='\t', row.names = F,
               col.names = TRUE)
 }
 

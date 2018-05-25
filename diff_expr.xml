@@ -21,21 +21,26 @@
 <!--   dirty hack to change R version -->     
   <command interpreter="~/.Renv/versions/3.4.1/bin/Rscript" detect_errors="exit_code"><![CDATA[
 run_dexpr.R -c $counts -o $output 
-#if $method=="--deseqpar" or $method=="--deseqloc" or $method=="--deseq2par" or $method=="--deseq2loc"
+
+#if $methods.deseqpar or $methods.deseqloc or $methods.deseq2par or $methods.deseq2loc
 -p $output2
 #end if 
-$method
+
+$methods.deseqpar $methods.deseqloc $methods.deseq2par $methods.deseq2loc
+$methods.wilcoxon $methods.metagenomeseqLog $methods.metagenomeseqZIG $methods.edgeR
+
 
 #for $N in $samples
   ${N.sampletype} 
 #end for
+
 
 ]]></command>
 
 
   <inputs>
     <param format="tabular" name="counts" type="data" optional="false" label="Input counted gene/exon hits"/>
-    <param name="column" type="data_column"  data_ref="counts" label="Choose column"/>
+    <!-- <param name="column" type="data_column"  data_ref="counts" label="Choose column"/>-->
     <repeat name="samples" title="Determine sample types" min="1" default="2">
       <param name="sampletype" label="Define type of each column in file (except first column, that contain gene name)" type="select">
         <option value="0"> Control </option>
@@ -43,23 +48,33 @@ $method
         <option value="-"> do not use this column at all </option>
       </param>
     </repeat>
-    <param name="method" type="select" label="Methods" multiple="true">
-      <option value="--deseqpar">DESeq parametric (default)</option>
-      <option value="--deseqloc">DESeq local (mandatory for only one condition or lack of repeats)</option>
-      <option value="--deseq2par">DESeq2 parametric (default)</option>
-      <option value="--deseq2loc">DESeq2 local (mandatory for only one condition or lack of repeats)</option>
-      <option value="--edgeR">edgeR</option>
-      <option value="--metagenomeseqLog">metagenomeSeq log-normal model</option>
-      <option value="--metagenomeseqZIG">metagenomeSeq ZIG (Zero-inflated Gaussian) model</option>
-      <option value="--wilcoxon">Mann-Whitney-Wilcoxon test</option>
-    </param>
+    <!-- <param name="method" type="select" label="Methods" multiple="true">
+      <option value="-deseqpar">DESeq parametric (default)</option>
+      <option value="-deseqloc">DESeq local (mandatory for only one condition or lack of repeats)</option>
+      <option value="-deseq2par">DESeq2 parametric (default)</option>
+      <option value="-deseq2loc">DESeq2 local (mandatory for only one condition or lack of repeats)</option>
+      <option value="-edgeR">edgeR</option>
+      <option value="-metagenomeseqLog">metagenomeSeq log-normal model</option>
+      <option value="-metagenomeseqZIG">metagenomeSeq ZIG (Zero-inflated Gaussian) model</option>
+      <option value="-wilcoxon">Mann-Whitney-Wilcoxon test</option>
+    </param> -->
+    <section name="methods" title="What differential expression analysis methods to run:" expanded="true">
+      <param name="wilcoxon" type="boolean" truevalue="--wilcoxon" falsevalue="" label="Mann-Whitney-Wilcoxon test"/>
+      <param name="edgeR" type="boolean" truevalue="--edgeR"  falsevalue="" label="edgeR"/>
+      <param name="deseqpar" type="boolean" truevalue="--deseqpar" falsevalue="" label="DESeq parametric"/>
+      <param name="deseqloc" type="boolean" truevalue="--deseqloc" falsevalue="" label="DESeq local (mandatory for only one condition or lack of repeats)"/>
+      <param name="deseq2par" type="boolean" truevalue="--deseq2par" falsevalue="" label="DESeq2 parametric (default)" selected="true"/>
+      <param name="deseq2loc" type="boolean" truevalue="--deseq2loc" falsevalue="" label="DESeq2 local (mandatory for only one condition or lack of repeats)"/>
+      <param name="metagenomeseqLog" type="boolean" truevalue="--metagenomeseqLog" falsevalue="" label="metagenomeSeq log-normal model"/>
+      <param name="metagenomeseqZIG" type="boolean" truevalue="--metagenomeseqZIG" falsevalue="" label="metagenomeSeq ZIG (Zero-inflated Gaussian) model"/>
+    </section>
     <param name="filter" type="integer" value="5" min="0" label="Filter out reads with less counts in one of conditions"/>
 
   </inputs>
   <outputs>
         <data format="tabular" name="output"/>
-        <data format="pdf" name="output2">
-		<filter>method=="--deseqpar" or method=="--deseqloc" or method=="--deseq2par" or method=="--deseq2loc"</filter>
+        <data format="pdf" name="output2" >
+		<filter>(methods['deseqpar'] == True) or (methods['deseqloc'] == True) or (methods['deseq2par'] == True) or (methods['deseq2loc'] == True) </filter>
 	</data>
   </outputs>
 
