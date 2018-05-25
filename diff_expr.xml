@@ -1,8 +1,11 @@
 <tool id="diff_expr" name="Run differential expression analysis" version="0.1.0">
 <requirements>
     <!-- <requirement type="set_environment">R_SCRIPT_PATH</requirement>-->
-    <requirement type="package" version="3.2.1">R</requirement>
+    <requirement type="package" version="3.4.2">R</requirement>
+    <requirement type="package" >DESeq</requirement>
     <requirement type="package" >DESeq2</requirement>
+    <requirement type="package" >metagenomeSeq</requirement>
+    <requirement type="package" >edgeR</requirement>
 
 
 </requirements>
@@ -14,9 +17,9 @@
 #end for
 </command>  -->
 
-<!--   dirty hack to change R version      
-  <command interpreter="~/.Renv/versions/3.4.1/bin/Rscript"> --> 
-  <command interpreter="Rscript" detect_errors="exit_code"><![CDATA[ 
+  <!-- <command interpreter="Rscript" detect_errors="exit_code"><![CDATA[ -->
+<!--   dirty hack to change R version -->     
+  <command interpreter="~/.Renv/versions/3.4.1/bin/Rscript" detect_errors="exit_code"><![CDATA[
 run_dexpr.R -c $counts -o $output 
 #if $method=="--deseqpar" or $method=="--deseqloc" or $method=="--deseq2par" or $method=="--deseq2loc"
 -p $output2
@@ -69,7 +72,7 @@ $method
     Requires raw count table (with header) in format:
     gene/exon name	sample1		sample2		sample3 	....
     
-    Filters out genes with too little counts.
+    Filter out genes with too little counts for one of conditions (optional).
 
     Returns table with mean values for conditions, foldChange, log2foldChange, p-value for each selected method.
 

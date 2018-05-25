@@ -1,19 +1,18 @@
 <?xml version="1.0"?>
 <tool_dependency>
-    <package name="R" version="3.2.1">
-	<repository name="package_r_3_2_1" owner="iuc"  prior_installation_required="True" />
-	<repository name="package_r_3_2_1_getopt_1_20_0" owner="bebatut" />
-        <!-- <repository name="seqTools" owner="iuc" /> get this package -->
-    </package>
+    <!-- <package name="R" version="3.2.1">
+	<repository toolshed="http://toolshed.g2.bx.psu.edu"  name="package_r_3_2_1" owner="iuc"  prior_installation_required="True" />
+	<repository toolshed="http://toolshed.g2.bx.psu.edu"  name="package_r_3_2_1_getopt_1_20_0" owner="bebatut" />
+    </package> -->
     <package name="diff_expr" version="0.1">
         <install version="1.0">
             <actions>
                 <action type="setup_r_environment">
-                    <repository name="package_r_3_2_1" owner="iuc">
+                    <repository toolshed="http://toolshed.g2.bx.psu.edu"  name="package_r_3_2_1" owner="iuc">
                         <package name="R" version="3.2.1" />
                     </repository>
-                    <!-- bioarchive.github.io -->
-
+                    
+<package>https://github.com/fubar2/galaxy_tool_source/blob/master/RELEASE_2_14/diffcount/BiocGenerics_0.12.1.tar.gz?raw=true</package>
                     <package sha256sum="d19047264bd8eb119e1842028d486df75b219242640c303c0a9bad66b9cf135a">
                         https://depot.galaxyproject.org/software/DESeq2/DESeq2_1.2.10_src_all.tar.gz
                     </package>
@@ -37,8 +36,5 @@
                 </action>
             </actions>
         </install>
-        <readme>
-        Multiple differential expression tools.
-	</readme>
     </package>
 </tool_dependency>

@@ -1,19 +1,17 @@
-#!/usr/bin/Rscript
 #####################################################
 
 options(show.error.messages=F, error=function(){cat(geterrmessage(),file=stderr());q("no",1,F)})
 
-
-library("optparse")
+suppressWarnings(suppressMessages(library("optparse")))
 library("stats")
 
 option_list = list(
   make_option(c("-c", "--countsfile"), type="character", default=NULL, 
               help="count dataset file name", metavar="character"),
   make_option(c("-o", "--out"), type="character", default="out.csv", 
-              help="output directory", metavar="character"),
+              help="output CSV filename", metavar="character"),
   make_option(c("-p", "--out2"), type="character", default="out.pdf", 
-              help="output directory", metavar="character"),
+              help="output PDF filename", metavar="character"),
   make_option(c("-w", "--wilcoxon"), action="store_true", default=FALSE, 
               help="compute Mann-Whitney-Wilcoxon test", metavar="character"),
   make_option(c("-d", "--deseqpar"),action="store_true",default=FALSE, 
@@ -37,31 +35,26 @@ option_list = list(
 opt_parser = OptionParser(option_list=option_list);
 opt = parse_args(opt_parser, positional_arguments=TRUE);
 
-
 datafile <- opt$options$countsfile
-
-print(paste("DE on file:", datafile))
+print(paste("Running differential expression on file:", datafile))
 
 args <- opt$args
 countTable = read.table( datafile, sep="\t", header=TRUE, row.names=1 )
 
 if ((length(args) != length(colnames(countTable))) || (sum(args == "0") + sum(args == "1") + sum(args == '-') != length(args))) {
-    cat(" You need to specify if sample is treated (1) or untreated(0) for every sample\n")
-    cat(args)
-    q(save="no", status=1)
+  cat(" You need to specify if sample is treated (1) or untreated(0) for every sample\n")
+  cat(args)
+  q(save="no", status=1)
 }
 
 
-
-
 ############################### Prepare data ##############################################
-
 
 countTable[,] <- round(countTable[,])
 countTable[, args == '-'] <- NULL
 
 f <- function(x) {
-    f <- ifelse(x=="0", "untreated", "treated")
+  f <- ifelse(x=="0", "untreated", "treated")
 }
 condition <- sapply(args[args != '-'], f)
 n <- length(condition)
@@ -74,8 +67,8 @@ print(colnames(countTable[condition == "untreated"]))
 n1<- sum(condition == 'untreated')
 n2<-sum(condition == 'treated')
 
-sums1 <-ifelse(n1==1, countTable[, condition == "untreated" ], rowSums(countTable[, condition == "untreated" ]))
-sums2 <-ifelse(n2==1, countTable[, condition == "treated" ], rowSums(countTable[, condition == "treated" ]))
+sums1 <- rowSums(countTable[, condition == "untreated" ])
+sums2 <- rowSums(countTable[, condition == "treated" ])
 
 data <- countTable
 data$name <- rownames(data)
@@ -96,39 +89,59 @@ successfull <- 0    #how many tests run successfully
 if (opt$options$filter != 0){
   MINREADSCOND <- opt$options$filter
   to_remove <- (sums2/n2<=MINREADSCOND) | (sums1/n1<=MINREADSCOND) 
-  int <- data[to_remove,]
+  print(paste("Removing", sum(to_remove), "genes with <=", MINREADSCOND, "counts in condition"))
+  
+  #int <- data[to_remove,]
   #write.table(int[order(abs(int$log2fold)),(n+1):dim(int)[2]], paste(opt$options$out, '/to_remove.txt', sep=''), quote=FALSE, sep='\t',
   #                        col.names = FALSE)
   countTable <- countTable[!to_remove,] 
-  data <- data[!to_remove,]
+  #data <- data[!to_remove,]
 }
 
 ########## run simpler test first - Mann-Whitney-Wilcoxon, H0: equal means, no assumption on distr
 
+run.wilcoxon <- function(s, i) {
+  pv <- NA
+  pv <- tryCatch({
+      wilcox.test(as.numeric(s[i,condition=="untreated"]), 
+              as.numeric(s[i,condition=="treated"]), 
+              alternative = "two.sided")$p.value
+    }, warning = function(w) {
+      NA
+  })
+  return(pv)
+}
+
+
 if (opt$options$wilcoxon) {
   result = tryCatch({
-    pv = rep(0,dim(countTable)[1]) 
+    print("Running Mann-Whitney-Wilcoxon test")
+    pv = rep(NA,dim(countTable)[1])
+    names(pv) <- rownames(countTable)
     normfac <- colSums(countTable)
     s <- scale(countTable, center=FALSE, scale=normfac/1000000)
-  
-    for (i in 1:dim(countTable)[1]) { pv[i]=wilcox.test(as.numeric(s[i,condition=="untreated"]), 
-                                                      as.numeric(s[i,condition=="treated"]), 
-                                                      alternative = "two.sided")$p.value } 
-    data$MWpval <- pv
+    
+    for (i in 1:dim(countTable)[1]) { pv[i]=run.wilcoxon(s, i)  }    
+    
+    data$MWpval <- sapply(rownames(data), function(x) pv[x])
+    
+    #print(head(pv))
     #data$MWpadj <- p.adjust(pv, method="BH")
     rm(s)    
     successfull<-successfull+1
+    print("Mann-Whitney-Wilcoxon test finished successfully.")
   }, warning = function(w) {
     print(w)
   }, error = function(e) {
     print("Error occured running Wilcoxon test")
-    write(e, stderr())
+    print(e)
   })
 }
 
 ####################### edgeR #############################
 if (opt$options$edgeR) {
   result = tryCatch({
+    print("Running edgeR")
     suppressWarnings(suppressMessages(library(edgeR)))
     group <- sapply(condition, function(x) ifelse(x=="treated", 1,2))
     y <- DGEList(counts=countTable,group=group)
@@ -146,8 +159,8 @@ if (opt$options$edgeR) {
     topTags(qlf)
     
     data$edgeRpv <- sapply(rownames(data), function(x) qlf$table[x,"PValue"])
-    padj <- p.adjust(qlf$table[,"PValue"]) 
-    data$edgeRpv <- sapply(rownames(data), function(x) padj[x])
+    #padj <- p.adjust(qlf$table[,"PValue"]) 
+    #data$edgeRpadj <- sapply(rownames(data), function(x) padj[x])
     rm(y, fit, qlf)
     
     #To perform likelihood ratio tests:
@@ -155,92 +168,120 @@ if (opt$options$edgeR) {
     #lrt <- glmLRT(fit,coef=2)
     #topTags(lrt)
     successfull<-successfull+1
+    print("edgeR finished successfully.")
   }, warning = function(w) {
     print(w)
   }, error = function(e) {
     print("Error occured running edgeR")
-    write(e, stderr())
+    print(e)
   })
 }
 
 ########################### DESeq or DESeq2 plot output #####################
+if (opt$options$deseqpar | opt$options$deseqloc | opt$options$deseq2par | opt$options$deseq2loc) {
+  title=paste("DESeq results"  ) 
+  pdf(opt$options$out2, paper='a4', onefile=TRUE, title=title)
+}
 
-rundeseq <- function(cds, outfile, fitType, title) {
+deseq.generalinfo <- function(cds, title) {
   suppressWarnings(suppressMessages(library(gplots)))
-  print("rundeseq")
-  
-  pdf(outfile, paper='a4', title=title)
-  ### write basic info 
   par(mar=c(0,0,0,0))
-  
-  y <- strsplit(colnames(countTable),".",fixed=TRUE)
   tab <- data.frame(names=colnames(countTable))
-  tab$names <- lapply(y, function(x) {paste(x[6],x[10],sep=".")})
+  #for my data with long colnames:
+  #y <- strsplit(colnames(countTable),".",fixed=TRUE)
+  #tab$names <- lapply(y, function(x) {paste(x[6],x[10],sep=".")})
+  
+  tab$names <- colnames(countTable)
   tab$condition <- condition
   tab$sizeFactors <-  lapply(sizeFactors(cds), function(x) { formatC(x, digits=4, format="g", flag="-") })
   tab$nReads <- colSums(countTable)
   colnames(tab) <- c("sample", "condition", "size factors", "no. reads")
-  textplot(tab, show.rownames=F)
   
-  ########## estimate dispersion and run DE analysis
-  if ( fitType == "parametric" ) {
-    cds = estimateDispersions( cds, fitType="parametric" )
-  } else {
-    cds = estimateDispersions( cds, method="blind", sharingMode="fit-only", fitType="local" )
-  }
-  
-  #print( fitInfo( cds ) )
-  par(oma=c(0,0,3,0), mar=c(5,5,3,5))
-    
-  plotDispEsts( cds, main="Empirical (black dots) and fitted (red lines) dispersion values \nplotted against the mean of the normalised counts. " )
+  textplot(tab, cex=1.5, show.rownames=F)
+  mtext(title, outer=TRUE, cex=1.3, line=-1) 
+}
 
+plot.deseq1 <- function(cds, fitType, title) {
+  par(oma=c(0,0,3,0), mar=c(5,5,3,5))
+  #fitInfo( cds ) 
+  DESeq::plotDispEsts( cds, main="Empirical (black dots) and fitted (red lines) dispersion values \nplotted against the mean of the normalised counts. " )
+    
   mtext(title, outer=TRUE, cex=1.5, line=1) 
-  res = nbinomTest( cds, "untreated", "treated" )
-  plotMA(res, main="Plot of normalised mean versus log2 fold change \nfor the contrast untreated versus treated")
+  res =  DESeq::nbinomTest( cds, "untreated", "treated" )
+  DESeq::plotMA(res, main="Plot of normalised mean versus log2 fold change \nfor the contrast untreated versus treated")    
+    
   hist(res$pval, breaks=100, col="skyblue", border="slateblue", main="Histogram of p-values")
   par(xaxs='i', yaxs='i' )
-  
-  res <- res[ order(res$pval), ] 
+    
+  #res <- res[ order(res$pval), ]
   #write.table(res, paste(outdir, '/', fitType, '.csv', sep=''), append=FALSE, quote=FALSE, row.names = FALSE, sep="\t")
   return(res)
 }
 
-#######  DESeq cd ###########
+plot.deseq2 <- function(cds, fitType, title) {
+  par(oma=c(0,0,3,0), mar=c(5,5,3,5))
+  DESeq2::plotDispEsts( cds, main="Empirical (black dots) and fitted (red lines) dispersion values \nplotted against the mean of the normalised counts. " )
+  
+  mtext(title, outer=TRUE, cex=1.5, line=1) 
+  #res = DESeq2::nbinomLRT( cds )
+  cds = DESeq2::nbinomWaldTest( cds )    
+  res <- results(cds)
+  DESeq2::plotMA(res, main="Plot of normalised mean versus log2 fold change \nfor the contrast untreated versus treated")
 
+  hist(res$pvalue, breaks=100, col="skyblue", border="slateblue", main="Histogram of p-values")
+  par(xaxs='i', yaxs='i' )
+    
+  #res <- res[ order(res$pvalue), ] 
+  #write.table(res, paste(outdir, '/', fitType, '.csv', sep=''), append=FALSE, quote=FALSE, row.names = FALSE, sep="\t")
+  return(res)
+}
+
+#######  Run DESeq ###########
 if (opt$options$deseqpar | opt$options$deseqloc) {
   result = tryCatch({
     suppressWarnings(suppressMessages(library( "DESeq" )))
-    title=paste("DESeq on ", sum(condition=="untreated"), " untreated and ", sum(condition=="treated"), " treated samples, on ", nrow(countTable) , "genes."  ) 
-  
-    cds = newCountDataSet( countTable, condition )
-    cds = estimateSizeFactors( cds )
-    print("estimate Size Factors")
+
+    cds = DESeq::newCountDataSet( countTable, condition )
+    cds = DESeq::estimateSizeFactors( cds )
     
     if ( length(condition) > 3 & opt$options$deseqpar ) {
-      cds1 = tryCatch({
-        res <- rundeseq(cds, opt$options$out2, "parametric", title )
-        data$DESeqparpv <- sapply(rownames(data), function(x) res[res$id==x,]$pval)
-        data$DESeqparpadj <- sapply(rownames(data), function(x) res[res$id==x,]$padj)
+      tryCatch({
+        print(paste("Running DESeq parametric"))
+        title=paste("DESeq on", nrow(countTable) , "genes.", "Fit type: parametric")
+        deseq.generalinfo(cds, title)
+        
+        cds <- DESeq::estimateDispersions( cds, fitType="parametric" )
+        res <- plot.deseq1(cds, "parametric", title)
+        data$DESeqparpv <- sapply(rownames(data), function(x) ifelse(sum(res$id==x) == 1, res[res$id==x,]$pval, NA))
+        #data$DESeqparpadj <- sapply(rownames(data), function(x) res[res$id==x,]$padj)
         successfull<-successfull+1
+        print("DESeq parametric finished successfully.")
       }, error = function(e) {
-        warning(e)
+        print("Error occured running DESeq parametric -> running local instead")
+        print(e)
         opt$options$deseqloc <- TRUE
-        FALSE
       }    )
     } 
     
     if ( opt$options$deseqloc ) {
-      res <- rundeseq(cds, opt$options$out2, "local", title )
-      data$DESeqlocpv <- sapply(rownames(data), function(x) res[res$id==x,]$pval)
-      data$DESeqlocpadj <- sapply(rownames(data), function(x) res[res$id==x,]$padj)
+      print(paste("Running DESeq local"))
+      title=paste("DESeq on", nrow(countTable) , "genes.", "Fit type: local")
+      deseq.generalinfo(cds, title)
+      
+      cds <- DESeq::estimateDispersions( cds, method="blind", sharingMode="fit-only", fitType="local" )
+      res <- plot.deseq1(cds, "local", title)
+      data$DESeqlocpv <- sapply(rownames(data), function(x) ifelse(sum(res$id==x) == 1, res[res$id==x,]$pval, NA))
+      #data$DESeqlocpadj <- sapply(rownames(data), function(x) res[res$id==x,]$padj)
       successfull<-successfull+1
+      print("DESeq local finished successfully.")
     }    
   }, warning = function(w) {
     print(w)
   }, error = function(e) {
     print("Error occured running DESeq")
-    write(e, stderr())
+    print(e)
   })
+  rm(cds)
 }
 
 ################### DESeq2 ##############################
@@ -248,58 +289,64 @@ if (opt$options$deseqpar | opt$options$deseqloc) {
 if (opt$options$deseq2par | opt$options$deseq2loc) {
   result = tryCatch({
     suppressWarnings(suppressMessages(library( "DESeq2" )))
-    title=paste("DESeq2 on ", sum(condition=="untreated"), " untreated and ", sum(condition=="treated"), " treated samples, on ", nrow(countTable) , "genes."  ) 
-  
+
     coldata = data.frame(colnames(countTable), condition)
-    print(head(coldata))
-    colnames(countTable) <- NULL
-    print(head(colnames(countTable)))
-    colnames(coldata)=c("sample", "condition")  
-    print(head(coldata))
+    countData <- data.frame(countTable)
+    colnames(countData) <- NULL
+    colnames(coldata)=c("sample", "condition")
     
-    dds <- DESeqDataSetFromMatrix(countData = countTable,
-                                colData = coldata,
-                                design = ~ condition)
-  
-    dds = estimateSizeFactors( dds )
+    dds <- DESeq2::DESeqDataSetFromMatrix(countData = countData, colData = coldata, design = ~ condition)    
+    dds = DESeq2::estimateSizeFactors( dds )
     
-    if ( opt$options$deseqpar ) {
-      cds1 = tryCatch({
-        res <- rundeseq(cds, opt$options$out2, "parametric", title )
-        data$DESeq2parpv <- sapply(rownames(data), function(x) res[res$id==x,]$pval)
-        data$DESeq2parpadj <- sapply(rownames(data), function(x) res[res$id==x,]$padj)
+    if ( opt$options$deseq2par ) {
+      tryCatch({
+        print(paste("Running DESeq2 parametric"))
+        title=paste("DESeq2 on", nrow(countTable) , "genes.", "Fit type: parametric")
+        deseq.generalinfo(dds, title)
+        
+        dds <- DESeq2::estimateDispersions( dds, fitType="parametric" )
+        res <- plot.deseq2(dds, "parametric", title)
+        data$DESeq2parpv <- sapply(rownames(data), function(x) ifelse(x %in% rownames(res), res[x,]$pvalue, NA))
+        
+        #data$DESeq2parpadj <- sapply(rownames(data), function(x) res[res$id==x,]$padj)
         successfull<-successfull+1
+        print("DESeq2 parametric finished successfully.")
       }, error = function(e) {
-        warning(e)
-        print("Running local mode instead")
-        opt$options$deseqloc <- TRUE
-        FALSE
-        }    )
-      } 
+        print("Error occured running DESeq2 parametric -> running local instead")
+        print(e)
+        opt$options$deseq2loc <- TRUE
+      }    )
+    } 
     
-    if ( opt$options$deseqloc ) {
-      res <- rundeseq(cds, opt$options$out2, "local", title )
-      data$DESeq2locpv <- sapply(rownames(data), function(x) res[res$id==x,]$pval)
-      data$DESeq2locpadj <- sapply(rownames(data), function(x) res[res$id==x,]$padj)
+    if ( opt$options$deseq2loc ) {
+      print(paste("Running DESeq2 local"))        
+      title=paste("DESeq2 on", nrow(countTable) , "genes.", "Fit type: local")
+      deseq.generalinfo(dds, title)
+      
+      cds <- DESeq2::estimateDispersions( dds, fitType="local" )
+      res <- plot.deseq2(dds, "local", title )
+      data$DESeq2locpv <- sapply(rownames(data), function(x) ifelse(x %in% rownames(res), res[x,]$pvalue, NA))
+      
+      #data$DESeq2locpadj <- sapply(rownames(data), function(x) res[res$id==x,]$padj)
       successfull<-successfull+1
+      print("DESeq2 local finished successfully.")
     }  
   }, warning = function(w) {
     print(w)
   }, error = function(e) {
     print("Error occured running DESeq2")
-    write(e, stderr())
+    print(e)
   } )
+  rm(countData, dds)
 }
-
-}
-
-
+garbage <- dev.off()
 
 ################## metagenomeSeq #######################
 if ( opt$options$metagenomeseqLog | opt$options$metagenomeseqZIG ) {
   result = tryCatch({
     suppressWarnings(suppressMessages(library(metagenomeSeq)))
-    metaData <- loadMeta(datafile,sep = '\t' )
+    print("Running MetagenomeSeq")
+    metaData <- loadMeta(datafile, sep = '\t' )
     #metaData <- load_meta(datafile,sep = '\t' )
     mrexpr <- newMRexperiment(metaData$counts)
     samplesToKeep = which(args != '-')
@@ -316,51 +363,57 @@ if ( opt$options$metagenomeseqLog | opt$options$metagenomeseqZIG ) {
     #rareFeatures = which(rowSums(MRcounts(mrexpr, norm=T) < 1) > 1)
     #mrexpr = mrexpr[-rareFeatures, ]
     #print(paste("MetagenomeSeq filtered out", length(rareFeatures), "reads leaving", dim(MRcounts(mrexpr))[1]))
-  
     
     ###export counts
     #mat = MRcounts(mrexpr, norm = TRUE, log = TRUE)
     #exportMat(mat, file = outputfile6)
     #exportStats(mrexpr, file= outputfile6)
     
-    
-    if ( opt$options$metagenomeseqLog ) {
-      ## log-normal model
-      pd <- pData(mrexpr)
-      mod <- model.matrix(~condition, data = pd)
-      fitModel = fitFeatureModel(mrexpr, mod)
-      #fitModel = fitLogNormal(mrexpr, mod)
-      head(MRcoefs(fitModel)$pvalues)
-      
-      data$metagenomeSeqLogNorm.pv <- sapply(rownames(data), function(x) fitModel$pvalues[x])
-      padj <- p.adjust(fitMode$pvalues, method="BH")
-      data$metagenomeSeqLogNorm.padj <- sapply(rownames(data), function(x) padj[x])        
-      successfull<-successfull+1
+    if ( opt$options$metagenomeseqLog ) {      ## log-normal model
+      result = tryCatch({
+        pd <- pData(mrexpr)
+        mod <- model.matrix(~condition, data = pd)
+        fitModel = fitFeatureModel(mrexpr, mod)
+        #fitModel = fitLogNormal(mrexpr, mod)
+        head(MRcoefs(fitModel)$pvalues)
+        
+        data$metagenomeSeqLogNorm.pv <- sapply(rownames(data), function(x) fitModel$pvalues[x])
+        #padj <- p.adjust(fitMode$pvalues, method="BH")
+        #data$metagenomeSeqLogNorm.padj <- sapply(rownames(data), function(x) padj[x])        
+        successfull<-successfull+1
+        print("MetagenomeSeq LogNorm finished successfully.")
+      }, error = function(e) {
+        print("Error occured running MetagenomeSeq LogNorm")
+        print(e)
+      } )
     }
-    if ( opt$options$metagenomeseqZIG ) {
-      ##ZIG model 
-      normFactor = normFactors(mrexpr)
-      normFactor = log2(normFactor/median(normFactor) + 1)
-      mod2 = model.matrix(~condition + normFactor)
-      settings = zigControl(maxit = 10, verbose = TRUE)
-      fitZigModel = fitZig(obj = mrexpr, mod = mod2, useCSSoffset = FALSE,
-                   control = settings)
-    
-      data$metagenomeSeqZIG.pv <- sapply(rownames(data), function(x) fitZigModel$eb$p.value[,2][x])
-      padj <- p.adjust(fitMode$pvalues, method="BH")
-      data$metagenomeSeqZIG.padj <- sapply(rownames(data), function(x) padj[x])
-      successfull<-successfull+1
+    if ( opt$options$metagenomeseqZIG ) {      ##Zero-Inflated-Gaussian model 
+      result = tryCatch({
+        normFactor = normFactors(mrexpr)
+        normFactor = log2(normFactor/median(normFactor) + 1)
+        mod2 = model.matrix(~condition + normFactor)
+        settings = zigControl(maxit = 10, verbose = TRUE)
+        fitZigModel = fitZig(obj = mrexpr, mod = mod2, useCSSoffset = FALSE,
+                             control = settings)
+        
+        data$metagenomeSeqZIG.pv <- sapply(rownames(data), function(x) fitZigModel$eb$p.value[,2][x])
+        #padj <- p.adjust(fitMode$pvalues, method="BH")
+        #data$metagenomeSeqZIG.padj <- sapply(rownames(data), function(x) padj[x])
+        successfull<-successfull+1
+        print("MetagenomeSeq ZIG finished successfully.")
+      }, error = function(e) {
+        print("Error occured running MetagenomeSeq ZIG")
+        print(e)
+      } )
     }  
-  }, warning = function(w) {
-    print(w)
   }, error = function(e) {
-    print("Error occured running MetagenomeSeq")
-    write(e, stderr())
+    print("Error occured preprocessing MetagenomeSeq")
+    print(e)
   } )
 }
 
-#print(warnings())
 ################# WRITE SUMMARY
+#print(warnings())
 
 if (successfull == 0) {
   write("No method finished successfully", stderr())
@@ -368,16 +421,17 @@ if (successfull == 0) {
 }
 
 data <- data[, (n+1):dim(data)[2]]
-
 last_pv <- dim(data)[2]
-data$toCheck <- apply(data[,(NON_PV_FIELDS+1):last_pv], 1, function(x) sum(x < 0.05, na.rm = T))
 
-mins <- apply(data[,(NON_PV_FIELDS+1):last_pv], 1, function(x) min(x, na.rm = TRUE))
-data$minimap_pv <- mins   #?
-data<-data[order(mins,  decreasing = F),]
-
-#print(paste("Number of contigs to check by at least 2 methods:", sum(data$toCheck >= 2, na.rm = TRUE)))
-write.table(data[order(data$toCheck,  decreasing = T),], opt$options$out, quote=FALSE, sep=',', row.names = F,
-            col.names = TRUE, )
+if (successfull > 1) {
+  data$toCheck <- apply(data[,(NON_PV_FIELDS+1):last_pv], 1, function(x) sum(x < 0.05, na.rm = T))
+  print(paste("Number of genes with p-value < 0.05 according to at least 2 methods:", sum(data$toCheck >= 2, na.rm = TRUE)))
+  write.table(data[order(data$toCheck,  decreasing = T),], opt$options$out, quote=FALSE, sep=',', row.names = F,
+              col.names = TRUE)
+} else {
+  print(paste("Number of genes with p-value < 0.05:", sum(data[,last_pv] < 0.05, na.rm = TRUE)))  
+  write.table(data[order(data[,last_pv],  decreasing = F),], opt$options$out, quote=FALSE, sep=',', row.names = F,
+              col.names = TRUE)
+}
 
 q(save="no", status=0)
