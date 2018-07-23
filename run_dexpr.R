@@ -252,8 +252,8 @@ if (opt$options$deseqpar | opt$options$deseqloc) {
         title=paste("DESeq on", nrow(countTable) , "genes.", "Fit type: parametric")
         deseq.generalinfo(cds, title)
         
-        cds <- DESeq::estimateDispersions( cds, fitType="parametric" )
-        res <- plot.deseq1(cds, "parametric", title)
+        cdsp <- DESeq::estimateDispersions( cds, fitType="parametric" )
+        res <- plot.deseq1(cdsp, "parametric", title)
         data$DESeqparpv <- sapply(rownames(data), function(x) ifelse(sum(res$id==x) == 1, res[res$id==x,]$pval, NA))
         #data$DESeqparpadj <- sapply(rownames(data), function(x) res[res$id==x,]$padj)
         successfull<-successfull+1
@@ -272,8 +272,8 @@ if (opt$options$deseqpar | opt$options$deseqloc) {
         title=paste("DESeq on", nrow(countTable) , "genes.", "Fit type: local")
         deseq.generalinfo(cds, title)
       
-        cds <- DESeq::estimateDispersions( cds, method="blind", sharingMode="fit-only", fitType="local" )
-        res <- plot.deseq1(cds, "local", title)
+        cdsl <- DESeq::estimateDispersions( cds, method="blind", sharingMode="fit-only", fitType="local" )
+        res <- plot.deseq1(cdsl, "local", title)
         data$DESeqlocpv <- sapply(rownames(data), function(x) ifelse(sum(res$id==x) == 1, res[res$id==x,]$pval, NA))
         #data$DESeqlocpadj <- sapply(rownames(data), function(x) res[res$id==x,]$padj)
         successfull<-successfull+1
@@ -313,8 +313,8 @@ if (opt$options$deseq2par | opt$options$deseq2loc) {
         title=paste("DESeq2 on", nrow(countTable) , "genes.", "Fit type: parametric")
         deseq.generalinfo(dds, title)
         
-        dds <- DESeq2::estimateDispersions( dds, fitType="parametric" )
-        res <- plot.deseq2(dds, "parametric", title)
+        ddsp <- DESeq2::estimateDispersions( dds, fitType="parametric" )
+        res <- plot.deseq2(ddsp, "parametric", title)
         data$DESeq2parpv <- sapply(rownames(data), function(x) ifelse(x %in% rownames(res), res[x,]$pvalue, NA))
         
         #data$DESeq2parpadj <- sapply(rownames(data), function(x) res[res$id==x,]$padj)
@@ -332,8 +332,8 @@ if (opt$options$deseq2par | opt$options$deseq2loc) {
       title=paste("DESeq2 on", nrow(countTable) , "genes.", "Fit type: local")
       deseq.generalinfo(dds, title)
       
-      cds <- DESeq2::estimateDispersions( dds, fitType="local" )
-      res <- plot.deseq2(dds, "local", title )
+      ddsl <- DESeq2::estimateDispersions( dds, fitType="local" )
+      res <- plot.deseq2(ddsl, "local", title )
       data$DESeq2locpv <- sapply(rownames(data), function(x) ifelse(x %in% rownames(res), res[x,]$pvalue, NA))
       
       #data$DESeq2locpadj <- sapply(rownames(data), function(x) res[res$id==x,]$padj)
